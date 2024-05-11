@@ -3,8 +3,16 @@
 #root {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
   text-align: center;
+}
+
+.App {
+  z-index: 2;
+  position: relative;
+  background: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .logo {

@@ -2,6 +2,7 @@ import { Bubble } from "src/components/Bubble/Bubble";
 import { useAppSelector } from "src/store/store";
 import React, { useCallback, useEffect, useState } from "react";
 import { selectBigCount } from "src/mechanics/counter/counterSlice";
+import styles from "./Bubble.module.css";
 
 export function BubbleManager({
   maxBubbles = Infinity,
@@ -35,7 +36,7 @@ export function BubbleManager({
     prevCountRef.current = count;
   }, [count, maxBubbles, onPopped]);
   return (
-    <div className="bubbles">
+    <div className={styles.bubbles}>
       <>{bubbles}</>
     </div>
   );

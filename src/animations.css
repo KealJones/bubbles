@@ -19,9 +19,9 @@
 
 @keyframes sideWays {
   0% {
-    margin-left: 0;
+    transform: translateX(0px);
   }
   100% {
-    margin-left: 50px;
+    transform: translateX(50px);
   }
 }

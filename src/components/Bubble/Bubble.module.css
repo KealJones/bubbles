@@ -16,6 +16,18 @@
   inherits: false;
 }
 
+.bubbles {
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100vw;
+  height: 100vh;
+  grid-column: 1;
+  grid-row: 1;
+  overflow: hidden;
+  position: absolute;
+}
+
 .bubble {
   -webkit-border-radius: 50%;
   -moz-border-radius: 50%;

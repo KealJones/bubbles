@@ -34,40 +34,47 @@ export function Bubble({
   }, []);
   return (
     <div
-      ref={bubbleRef}
-      onClick={(event) => {
-        const bubbleRect = bubbleRef.current?.getBoundingClientRect();
-        offsetRef.current = {
-          left: `calc(${
-            event.clientX - (bubbleRect?.x ?? 0)
-          }px / var(--scale))`,
-          top: `calc(${event.clientY - (bubbleRect?.y ?? 0)}px / var(--scale))`,
-        };
-        setPopped(true);
+      style={{
+        animation: `sideWays ${randomSway.current}s ease-in-out infinite alternate`,
       }}
-      className={`${styles.bubble}`}
-      style={
-        {
-          "--scale": scale ?? `0.${randomScale.current}`,
-          cursor: "pointer",
-          left: randomLeft.current + "%",
-          top: randomTop.current + "%",
-          "--size": popped ? "200px" : "0px",
-          "--pos": `top ${offsetRef.current.top} left ${offsetRef.current.left}`,
-          transform: `translateX(10vh) translateY(10vh) scale(var(--scale))`,
-          animation: `animateBubble ${randomFloatTime.current}s linear infinite,
-            sideWays ${randomSway.current}s ease-in-out infinite alternate`,
-          ...(popped
-            ? {
-                maskImage: `radial-gradient(
+    >
+      <div
+        ref={bubbleRef}
+        onClick={(event) => {
+          const bubbleRect = bubbleRef.current?.getBoundingClientRect();
+          offsetRef.current = {
+            left: `calc(${
+              event.clientX - (bubbleRect?.x ?? 0)
+            }px / var(--scale))`,
+            top: `calc(${
+              event.clientY - (bubbleRect?.y ?? 0)
+            }px / var(--scale))`,
+          };
+          setPopped(true);
+        }}
+        className={`${styles.bubble}`}
+        style={
+          {
+            "--scale": scale ?? `0.${randomScale.current}`,
+            cursor: "pointer",
+            left: randomLeft.current + "%",
+            top: randomTop.current + "%",
+            "--size": popped ? "200px" : "0px",
+            "--pos": `top ${offsetRef.current.top} left ${offsetRef.current.left}`,
+            transform: `translateX(10vh) translateY(10vh) scale(var(--scale))`,
+            animation: `animateBubble ${randomFloatTime.current}s linear infinite`,
+            ...(popped
+              ? {
+                  maskImage: `radial-gradient(
             circle var(--size) at var(--pos),
             transparent var(--size),
             #000 0
           )`,
-              }
-            : {}),
-        } as React.CSSProperties
-      }
-    ></div>
+                }
+              : {}),
+          } as React.CSSProperties
+        }
+      ></div>
+    </div>
   );
 }

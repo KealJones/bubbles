@@ -1,0 +1,41 @@
+@property --num {
+  syntax: "<number>";
+  initial-value: 0;
+  inherits: false;
+}
+
+@property --temp {
+  syntax: "<number>";
+  initial-value: 0;
+  inherits: false;
+}
+
+@property --p1 {
+  syntax: "<integer>";
+  initial-value: 0;
+  inherits: false;
+}
+
+@property --p2 {
+  syntax: "<integer>";
+  initial-value: 0;
+  inherits: false;
+}
+
+.value {
+  transition: --num 1s linear;
+  --temp: calc(var(--num) * 100);
+  --p1: max(var(--temp) - 0.5, 0);
+  --p2: max((var(--temp) - var(--p1)) * 100 - 0.5, 0);
+  counter-reset: p1 var(--p1) p2 var(--p2);
+  font-size: 78px;
+  padding-left: 16px;
+  padding-right: 16px;
+  margin-top: 2px;
+  font-family: "Courier New", Courier, monospace;
+}
+
+.value::before {
+  content: counter(p1) "." counter(p2, decimal-leading-zero);
+  display: inline-block;
+}

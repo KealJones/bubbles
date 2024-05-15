@@ -6,7 +6,7 @@ export const autoCounterSlice = createExponentialCountSlice({
   name: "autoCounter",
 });
 
-export const { increment, decrement, incrementByAmount } =
+export const { increment, decrement, incrementByAmount, setToAmount } =
   autoCounterSlice.actions;
 
 // The function below is called a selector and allows us to select a count from

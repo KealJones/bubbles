@@ -19,6 +19,7 @@ import { tickSaga } from "./sagas/gameTickSaga";
 const sagaMiddleware = createSagaMiddleware();
 
 export const store = configureStore({
+  devTools: true,
   reducer: {
     game: gameReducer,
     autoCounter: autoCounterReducer,

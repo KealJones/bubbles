@@ -18,6 +18,7 @@ type ExponentialCountSliceReducers<State> = SliceCaseReducers<State> & {
   increment: CaseReducer<State>;
   decrement: CaseReducer<State>;
   incrementByAmount: CaseReducer<State, PayloadAction<number | bigint>>;
+  setToAmount: CaseReducer<State, PayloadAction<bigint>>;
 };
 
 export interface ExponentialCountSliceState {
@@ -82,6 +83,10 @@ export const createExponentialCountSlice = <
       },
       decrement: (state, action) => {
         incrementByAmount(state, { ...action, payload: -1 });
+      },
+      setToAmount(state, action: PayloadAction<bigint>) {
+        state.bigCount = 0n;
+        incrementByAmount(state, action);
       },
       // Use the PayloadAction type to declare the contents of `action.payload`
       incrementByAmount: incrementByAmount,

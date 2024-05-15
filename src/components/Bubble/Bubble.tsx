@@ -4,9 +4,11 @@ import React, { useEffect } from "react";
 
 export function Bubble({
   scale,
+  left,
   onPopped,
 }: {
   scale?: number;
+  left?: number;
   pop?: () => Promise<void>;
   onPopped?: () => void;
 }) {
@@ -57,7 +59,7 @@ export function Bubble({
           {
             "--scale": scale ?? `0.${randomScale.current}`,
             cursor: "pointer",
-            left: randomLeft.current + "%",
+            left: left != null ? left + "px" : randomLeft.current + "%",
             top: randomTop.current + "%",
             "--size": popped ? "200px" : "0px",
             "--pos": `top ${offsetRef.current.top} left ${offsetRef.current.left}`,

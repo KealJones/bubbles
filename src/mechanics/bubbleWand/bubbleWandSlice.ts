@@ -6,8 +6,7 @@ export const counterSlice = createExponentialCountSlice({
   name: "counter",
 });
 
-export const { increment, decrement, incrementByAmount, setToAmount } =
-  counterSlice.actions;
+export const { increment, decrement, incrementByAmount } = counterSlice.actions;
 
 export const selectCount = (state: RootState) => state.counter.count;
 

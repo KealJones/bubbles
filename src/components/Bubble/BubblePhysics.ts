@@ -21,6 +21,7 @@ export interface BubbleModel {
   phase: number;
   depth: number;
   mergeDelay: number;
+  growthStartRadius?: number;
   burstRadius?: number;
   edgeResolved?: boolean;
   pop?: { x: number; y: number; elapsed: number; reach: number };
@@ -58,10 +59,11 @@ export function createBubble(id: number, width: number, height: number, onScreen
   };
 }
 
-export function attachToWand(bubble: BubbleModel, x: number, y: number) {
+export function attachToWand(bubble: BubbleModel, x: number, y: number, initialRadius = 12 * DEPTH_SCALE[bubble.depth]) {
   bubble.anchor = { x, y };
   bubble.burstRadius = (240 + Math.random() * 280) * DEPTH_SCALE[bubble.depth];
-  bubble.radius = 12 * DEPTH_SCALE[bubble.depth];
+  bubble.radius = initialRadius;
+  bubble.growthStartRadius = initialRadius;
   bubble.x = x;
   bubble.y = y - bubble.radius * 0.78;
   bubble.age = 0;
@@ -135,7 +137,7 @@ export function advanceBubbles(
     b.age += dt;
     if (b.pop) b.pop.elapsed += dt;
     if (b.anchor) {
-      b.radius = (12 + 48 * Math.pow(b.age, .88)) * DEPTH_SCALE[b.depth];
+      b.radius = (b.growthStartRadius ?? 12 * DEPTH_SCALE[b.depth]) + 48 * Math.pow(b.age, .88) * DEPTH_SCALE[b.depth];
       const follow = 1 - Math.exp(-dt * Math.max(2.5, 9 - b.radius / 55));
       b.x += (b.anchor.x - b.x) * follow;
       b.y += (b.anchor.y - b.radius * .78 - b.y) * follow;

@@ -24,6 +24,8 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
   const bubbles = useRef<BubbleModel[]>([]);
   const buttons = useRef(new Map<number, HTMLButtonElement>());
   const sprayCanvas = useRef<HTMLCanvasElement>(null);
+  const wandFilmCanvas = useRef<HTMLCanvasElement>(null);
+  const readyFilm = useRef<{ bubble: BubbleModel; x: number; y: number; visible: boolean } | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const fluidFrame = useRef<HTMLIFrameElement>(null);
   const fluidCanvas = useRef<HTMLCanvasElement | null>(null);
@@ -51,11 +53,21 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
     if (bubble && !bubble.anchor) popBubble(bubble, x, y);
   }, []);
 
+  const showReadyFilm = useCallback((point: { x: number; y: number } | null) => {
+    if (!point) { if (readyFilm.current) readyFilm.current.visible = false; return; }
+    if (!readyFilm.current) {
+      const bubble = createBubble(nextId.current++, window.innerWidth, window.innerHeight, false);
+      bubble.radius = 17;
+      readyFilm.current = { bubble, ...point, visible: true };
+    } else Object.assign(readyFilm.current, point, { visible: true });
+  }, []);
   const startBlowing = useCallback((x: number, y: number) => {
     if (!capacity || growingId.current !== null) return false;
     if (bubbles.current.length >= capacity) bubbles.current.shift();
-    const bubble = createBubble(nextId.current++, window.innerWidth, window.innerHeight, false);
-    attachToWand(bubble, x, y);
+    const bubble = readyFilm.current?.bubble ?? createBubble(nextId.current++, window.innerWidth, window.innerHeight, false);
+    readyFilm.current = null;
+    attachToWand(bubble, x, y, 17);
+    bubble.x = x; bubble.y = y;
     bubbles.current.push(bubble);
     growingId.current = bubble.id;
     setBlowing(true);
@@ -111,6 +123,9 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
       setRenderError(true);
       return;
     }
+    let wandRenderer: SoapFilmRenderer | null = null;
+    try { if (wandFilmCanvas.current) wandRenderer = new SoapFilmRenderer(wandFilmCanvas.current); }
+    catch (error) { console.error('Unable to render wand film', error); }
     const spray = new PopSpray();
     let frameId = 0, previous = 0, filmTime = 0;
     const animate = (now: number) => {
@@ -144,10 +159,20 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
       }
       if (sprayCanvas.current) spray.draw(sprayCanvas.current, bubbles.current, dt, width, height);
       const source = fluidCanvas.current;
+      if (source && wandRenderer && wandFilmCanvas.current) {
+        const ready = readyFilm.current;
+        if (ready?.visible) {
+          // The loaded film and growing bubble share their model and fluid coordinates.
+          wandFilmCanvas.current.style.transform = `translate3d(${ready.x - 24}px,${ready.y - 24}px,0)`;
+          wandRenderer.draw(source, [{ x: 24, y: 24, rx: 17, ry: 17, phase: ready.bubble.phase,
+            wobble: .006, blend: 0, depth: 2 }], filmTime, 48, 48, material.current.transparency, 'black', 1,
+            { x: ready.x - 24, y: ready.y - 24, width, height });
+        } else wandRenderer.draw(source, [], filmTime, 48, 48);
+      }
       if (source) renderer.draw(source, getFilmShapes(bubbles.current), filmTime, width, height, material.current.transparency, material.current.backdrop, material.current.lightBending);
     };
     frameId = requestAnimationFrame(animate);
-    return () => { cancelAnimationFrame(frameId); renderer.destroy(); };
+    return () => { cancelAnimationFrame(frameId); renderer.destroy(); wandRenderer?.destroy(); };
   }, []);
 
   return (
@@ -166,7 +191,8 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
       <div className={styles.hitLayer}>
         {ids.map((id) => <Bubble id={id} key={id} register={register} onPopped={pop} />)}
       </div>
-      <BubbleWand blowing={blowing} onStart={startBlowing} onMove={moveWand} onRelease={releaseBubble} onCancel={cancelBlowing} />
+      <canvas aria-hidden="true" className={styles.wandFilm} ref={wandFilmCanvas} />
+      <BubbleWand onReadyFilm={showReadyFilm} blowing={blowing} onStart={startBlowing} onMove={moveWand} onRelease={releaseBubble} onCancel={cancelBlowing} />
       <details className={styles.settings} data-wand-ui>
         <summary>Motion &amp; glass</summary>
         <div className={styles.settingsBody}>

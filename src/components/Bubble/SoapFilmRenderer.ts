@@ -24,6 +24,7 @@ uniform sampler2D backdrop;
 uniform bool refractBackground;
 uniform bool paintBackground;
 uniform vec2 size;
+uniform vec4 fluidBounds;
 uniform float pixelRatio;
 uniform float time;
 uniform vec4 optics;
@@ -89,7 +90,7 @@ vec3 interference(float thickness) {
   return mix(a, b, smoothstep(0., 1., fract(t)));
 }
 vec3 readFluid(vec2 p) {
-  vec2 uv = clamp(p / size, vec2(.003), vec2(.997));
+  vec2 uv = clamp((p + fluidBounds.xy) / fluidBounds.zw, vec2(.003), vec2(.997));
   return texture(fluid, vec2(uv.x, 1. - uv.y)).rgb;
 }
 void main() {
@@ -226,7 +227,7 @@ export class SoapFilmRenderer {
     const position = gl.getAttribLocation(this.program, 'position');
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-    for (const name of ['backdrop','refractBackground','paintBackground','fluid','size','pixelRatio','time','count','shapes','motion','tears','optics','rimWidth','transparency','lightBending','layerOpacity']) {
+    for (const name of ['backdrop','refractBackground','paintBackground','fluid','fluidBounds','size','pixelRatio','time','count','shapes','motion','tears','optics','rimWidth','transparency','lightBending','layerOpacity']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.texture = gl.createTexture()!;
@@ -247,7 +248,7 @@ export class SoapFilmRenderer {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   }
 
-  draw(source: HTMLCanvasElement, shapes: FilmShape[], time: number, width: number, height: number, transparency = 0.8, background = 'black', lightBending = 1) {
+  draw(source: HTMLCanvasElement, shapes: FilmShape[], time: number, width: number, height: number, transparency = 0.8, background = 'black', lightBending = 1, fluidBounds = { x: 0, y: 0, width, height }) {
     if (this.lost || !source.width || !source.height) return;
     const gl = this.gl;
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(1800000 / (width * height)));
@@ -257,6 +258,7 @@ export class SoapFilmRenderer {
     }
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    if (!shapes.length && background === 'black') return;
     gl.useProgram(this.program);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
@@ -267,6 +269,7 @@ export class SoapFilmRenderer {
     gl.uniform1i(u.refractBackground, background === 'grid' ? 1 : 0);
     gl.uniform1i(u.paintBackground, 0);
     gl.uniform2f(u.size, width, height);
+    gl.uniform4f(u.fluidBounds, fluidBounds.x, fluidBounds.y, fluidBounds.width, fluidBounds.height);
     gl.uniform1f(u.pixelRatio, dpr); gl.uniform1f(u.time, time);
     gl.uniform4f(u.optics, MATERIAL.bezel, MATERIAL.depth, MATERIAL.dispersion, MATERIAL.maxBezel);
     gl.uniform1f(u.rimWidth, MATERIAL.rimWidth);

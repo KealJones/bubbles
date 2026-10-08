@@ -7,45 +7,25 @@ type Props = {
   onMove: (x: number, y: number, vx: number, vy: number) => void;
   onRelease: (vx: number, vy: number) => void;
   onCancel: () => void;
+  onReadyFilm: (point: { x: number; y: number } | null) => void;
 };
-function Wand({ loaded = false }: { loaded?: boolean }) {
+function Wand() {
   const id = useId();
   return (
     <svg viewBox="0 0 60 130" aria-hidden="true">
       <defs>
-        <linearGradient id={`${id}-paint`} x2="1" y2="1">
+        <linearGradient id={`${id}-paint`} gradientUnits="userSpaceOnUse" x1="6" y1="6" x2="52" y2="120">
           <stop stopColor="#b6f9e4"/><stop offset="1" stopColor="#b4a3ee"/>
         </linearGradient>
-        <radialGradient id={`${id}-film`} cx="35%" cy="25%" r="80%">
-          <stop stopColor="#b1fff0" stopOpacity=".3"/>
-          <stop offset=".45" stopColor="#91c5ff" stopOpacity=".08"/>
-          <stop offset=".72" stopColor="#c394ed" stopOpacity=".25"/>
-          <stop offset="1" stopColor="#f7c8a2" stopOpacity=".55"/>
-        </radialGradient>
-        <linearGradient id={`${id}-ribbon`} x2=".8" y2="1">
-          <stop stopColor="#80efe4" stopOpacity=".6"/>
-          <stop offset=".4" stopColor="#a7a0f7" stopOpacity=".4"/>
-          <stop offset=".7" stopColor="#f5a9d9" stopOpacity=".45"/>
-          <stop offset="1" stopColor="#f6dc94" stopOpacity=".55"/>
-        </linearGradient>
-        <clipPath id={`${id}-ring`}><circle cx="30" cy="29" r="20.5"/></clipPath>
       </defs>
       <path d="M30 53L30 114" stroke={`url(#${id}-paint)`} strokeWidth="9" strokeLinecap="round"/>
-      {loaded && <g clipPath={`url(#${id}-ring)`}>
-        <circle cx="30" cy="29" r="21" fill={`url(#${id}-film)`}/>
-        <g className={styles.readyFilm}>
-          <path d="M4 17C18 1 23 39 38 20S57 17 62 30" fill="none" stroke={`url(#${id}-ribbon)`} strokeWidth="7"/>
-          <path d="M2 37C22 20 26 59 58 36" fill="none" stroke={`url(#${id}-ribbon)`} strokeWidth="4"/>
-        </g>
-        <path d="M16 26A15 15 0 0 1 29 14" fill="none" stroke="#e9fff9" strokeOpacity=".75" strokeWidth="1.4" strokeLinecap="round"/>
-      </g>}
       <circle cx="30" cy="29" r="23" fill="none" stroke={`url(#${id}-paint)`} strokeWidth="5"/>
       <circle cx="30" cy="29" r="18" fill="none" stroke="#e6fffa" strokeOpacity=".5"/>
       <path d="m30 91 3 5 6 1-4 4 1 6-6-3-5 3 1-6-5-4 6-1Z" fill="#fff2ba"/>
     </svg>
   );
 }
-export function BubbleWand({ blowing, onStart, onMove, onRelease, onCancel }: Props) {
+export function BubbleWand({ blowing, onStart, onMove, onRelease, onCancel, onReadyFilm }: Props) {
   const [equipped, setEquipped] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const cursor = useRef<HTMLDivElement>(null);
@@ -58,7 +38,12 @@ export function BubbleWand({ blowing, onStart, onMove, onRelease, onCancel }: Pr
     if (!cursor.current) return;
     cursor.current.style.transform = `translate3d(${x - 25}px,${y - 24}px,0) rotate(-12deg)`;
     cursor.current.style.opacity = visible ? '1' : '0';
+    onReadyFilm(loaded && visible ? { x, y } : null);
   };
+  useEffect(() => {
+    if (equipped && point.current.time) position(point.current.x, point.current.y);
+    else onReadyFilm(null);
+  }, [equipped, loaded, onReadyFilm]);
   useEffect(() => {
     if (!blowing) { active.current = false; pointer.current = null; }
   }, [blowing]);
@@ -104,12 +89,12 @@ export function BubbleWand({ blowing, onStart, onMove, onRelease, onCancel }: Pr
       window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
       window.removeEventListener('blur', cancel); window.removeEventListener('keydown', key);
     };
-  }, [equipped, loaded, onStart, onMove, onRelease, onCancel]);
+  }, [equipped, loaded, onStart, onMove, onRelease, onCancel, onReadyFilm]);
   return <>
-    {equipped && <div className={styles.cursor} ref={cursor} data-loaded={loaded} data-blowing={blowing} aria-hidden="true"><Wand loaded={loaded} /></div>}
+    {equipped && <div className={styles.cursor} ref={cursor} data-loaded={loaded} data-blowing={blowing} aria-hidden="true"><Wand /></div>}
     <div className={styles.station} data-wand-ui>
       <button ref={juice} data-juice className={styles.juice} disabled={!equipped || blowing} onClick={() => setLoaded(true)} aria-label="Dip wand in bubble juice"><span className={styles.liquid}><i/><i/><i/></span><span>bubble juice</span></button>
-      <button className={styles.pickup} aria-pressed={equipped} onClick={() => { if (blowing) onRelease(0, 0); setEquipped(!equipped); }}><Wand loaded={loaded && !equipped} /><span>{equipped ? 'Put down wand' : 'Pick up wand'}</span></button>
+      <button className={styles.pickup} aria-pressed={equipped} onClick={() => { if (blowing) onRelease(0, 0); setEquipped(!equipped); }}><Wand /><span>{equipped ? 'Put down wand' : 'Pick up wand'}</span></button>
     </div>
     <div className={styles.hint} aria-live="polite">{!equipped ? 'Click a bubble to pop it' : blowing ? 'Keep blowing… or sweep to release' : loaded ? 'Hold anywhere to blow · release to let go' : 'Dip your wand in the bubble juice'}
       {equipped && <button disabled={!loaded && !blowing} onPointerDown={event => {

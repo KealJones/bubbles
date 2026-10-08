@@ -18,7 +18,7 @@ export class PopSpray {
         const x = b.pop.x + Math.cos(angle) * radius, y = b.pop.y + Math.sin(angle) * radius;
         if (Math.hypot(x - b.x, y - b.y) > b.radius * 1.08) continue;
         const speed = 35 + Math.random() * 95;
-        this.drops.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: .35 + Math.random() * .25, size: .4 + Math.random() * .8 });
+        this.drops.push({ x, y, vx: b.vx + Math.sin(b.age * .75 + b.phase) * 6 + Math.cos(angle) * speed, vy: b.vy + Math.sin(angle) * speed, life: .35 + Math.random() * .25, size: .4 + Math.random() * .8 });
       }
     }
     this.drops = this.drops.filter(d => d.life > 0).slice(-1600);

@@ -132,7 +132,7 @@ export function advanceBubbles(
   const next = bubbles.filter((b) => b.pop ? b.pop.elapsed < .42 : b.anchor || (b.age < b.lifetime && b.y + b.radius > -20));
   for (const b of next) {
     b.age += dt;
-    if (b.pop) { b.pop.elapsed += dt; continue; }
+    if (b.pop) b.pop.elapsed += dt;
     if (b.anchor) {
       b.radius = (12 + 48 * Math.pow(b.age, .88)) * DEPTH_SCALE[b.depth];
       const follow = 1 - Math.exp(-dt * Math.max(2.5, 9 - b.radius / 55));
@@ -142,6 +142,7 @@ export function advanceBubbles(
       continue;
     }
     if (b.mergeDelay > 0) b.vy += (-(12 + b.depth * 5) - b.vy) * Math.min(1, dt * .7);
+    const previousX = b.x, previousY = b.y;
     b.x += (b.vx + Math.sin(b.age * 0.75 + b.phase) * 6) * dt;
     b.y += b.vy * dt;
     const edge = Math.min(b.radius, width / 2);
@@ -149,6 +150,8 @@ export function advanceBubbles(
       b.vx = b.x < edge ? Math.abs(b.vx) : -Math.abs(b.vx);
       b.x = Math.max(edge, Math.min(width - edge, b.x));
     }
+    // Carry the opening tear with the moving film.
+    if (b.pop) { b.pop.x += b.x - previousX; b.pop.y += b.y - previousY; }
     if (b.merge) {
       b.merge.elapsed += dt;
       if (b.merge.elapsed >= b.merge.duration) b.merge = undefined;

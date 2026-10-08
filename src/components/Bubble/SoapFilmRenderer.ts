@@ -34,12 +34,16 @@ uniform vec4 motion[${MAX_SHAPES}];
 out vec4 outColor;
 const float PI = 3.14159265359;
 
-float bubbleDistance(vec2 p, int i) {
+float surfaceDistance(vec2 p, int i) {
   vec2 q = (p - shapes[i].xy) / shapes[i].zw;
   float angle = atan(q.y, q.x);
   float wave = sin(angle * 3. + time * 1.4 + motion[i].x) * .65
              + sin(angle * 5. - time * .9 + motion[i].x * 1.7) * .35;
   float surface = (length(q) - 1. - wave * motion[i].y) * min(shapes[i].z, shapes[i].w);
+  return surface;
+}
+float bubbleDistance(vec2 p, int i) {
+  float surface = surfaceDistance(p, i);
   return tears[i].w > .5 ? max(surface, tears[i].z - length(p - tears[i].xy)) : surface;
 }
 float smoothUnion(float a, float b, float k) {
@@ -47,12 +51,12 @@ float smoothUnion(float a, float b, float k) {
   float h = max(k - abs(a - b), 0.) / k;
   return min(a, b) - h * h * k * .25;
 }
-float field(vec2 p) {
+float field(vec2 p, bool intact) {
   float d = 1e5;
   float previousBlend = 36.;
   for (int i = 0; i < ${MAX_SHAPES}; i++) {
     if (i >= count) break;
-    float nextDistance = bubbleDistance(p, i);
+    float nextDistance = intact ? surfaceDistance(p, i) : bubbleDistance(p, i);
     float nextBlend = motion[i].z;
     float blended = smoothUnion(d, nextDistance, min(previousBlend, nextBlend));
     if (nextDistance < d) previousBlend = nextBlend;
@@ -87,23 +91,25 @@ vec3 readFluid(vec2 p) {
 void main() {
   if (count == 0) { outColor = vec4(0.); return; }
   vec2 p = vec2(gl_FragCoord.x, size.y * pixelRatio - gl_FragCoord.y) / pixelRatio;
-  float d = field(p);
-  if (d > 1.5) { outColor = vec4(0.); return; }
+  // The tear cuts visibility only; it must not create a new glass rim or reflection.
+  float coverageDistance = field(p, false);
+  float d = field(p, true);
+  if (coverageDistance > 1.5) { outColor = vec4(0.); return; }
   float nearest = 1e5, second = 1e5;
   float nearestBlend = 0., secondBlend = 0.;
   float radius = 80.;
   vec2 center = vec2(0.);
   for (int i = 0; i < ${MAX_SHAPES}; i++) {
     if (i >= count) break;
-    float v = bubbleDistance(p, i);
+    float v = surfaceDistance(p, i);
     if (v < nearest) {
       second = nearest; secondBlend = nearestBlend; nearest = v; nearestBlend = motion[i].z;
       radius = min(shapes[i].z, shapes[i].w);
       center = shapes[i].xy;
     } else if (v < second) { second = v; secondBlend = motion[i].z; }
   }
-  vec2 grad = vec2(field(p + vec2(.65,0.)) - field(p - vec2(.65,0.)),
-                   field(p + vec2(0.,.65)) - field(p - vec2(0.,.65)));
+  vec2 grad = vec2(field(p + vec2(.65,0.), true) - field(p - vec2(.65,0.), true),
+                   field(p + vec2(0.,.65), true) - field(p - vec2(0.,.65), true));
   vec2 normal = grad / max(length(grad), .0001);
   float depth = max(0., -d);
   float bezel = min(radius * 2. * optics.x, optics.w);
@@ -140,7 +146,7 @@ void main() {
   float arc = exp(-pow((length(local - vec2(.04,.13)) - .9) / .016, 2.));
   arc *= smoothstep(.25,.72,-local.y) * (1. - smoothstep(-.35,.6,local.x));
   color += vec3(.62,.85,.96) * arc * .12;
-  float cover = 1. - smoothstep(-.7 / pixelRatio, .7 / pixelRatio, d);
+  float cover = 1. - smoothstep(-.7 / pixelRatio, .7 / pixelRatio, coverageDistance);
   vec3 reflected = clamp(color, 0., 1.);
   // Preserve the approved reflections on black while transmitting the real backdrop.
   // This is premultiplied alpha: no black paint or color-key transparency.

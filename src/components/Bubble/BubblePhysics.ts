@@ -22,6 +22,7 @@ export interface BubbleModel {
   depth: number;
   mergeDelay: number;
   burstRadius?: number;
+  edgeResolved?: boolean;
   pop?: { x: number; y: number; elapsed: number; reach: number };
   anchor?: { x: number; y: number };
   merge?: { elapsed: number; duration: number; lobes: [Lobe, Lobe] };
@@ -129,7 +130,7 @@ export function advanceBubbles(
   bubbles: BubbleModel[], dt: number, width: number,
   onMerge?: (x: number, y: number) => void,
 ): BubbleModel[] {
-  const next = bubbles.filter((b) => b.pop ? b.pop.elapsed < .42 : b.anchor || (b.age < b.lifetime && b.y + b.radius > -20));
+  const next = bubbles.filter((b) => b.pop ? b.pop.elapsed < .42 : b.anchor || (b.age < b.lifetime && b.y + b.radius > -20 && b.x + b.radius * 1.2 > -20 && b.x - b.radius * 1.2 < width + 20));
   for (const b of next) {
     b.age += dt;
     if (b.pop) b.pop.elapsed += dt;
@@ -145,13 +146,13 @@ export function advanceBubbles(
     const previousX = b.x, previousY = b.y;
     b.x += (b.vx + Math.sin(b.age * 0.75 + b.phase) * 6) * dt;
     b.y += b.vy * dt;
-    const edge = Math.min(b.radius, width / 2);
-    if (b.x < edge || b.x > width - edge) {
-      b.vx = b.x < edge ? Math.abs(b.vx) : -Math.abs(b.vx);
-      b.x = Math.max(edge, Math.min(width - edge, b.x));
-    }
     // Carry the opening tear with the moving film.
     if (b.pop) { b.pop.x += b.x - previousX; b.pop.y += b.y - previousY; }
+    if (!b.pop && !b.edgeResolved && (b.x - b.radius <= 0 || b.x + b.radius >= width)) {
+      // Decide once at first contact: tear at the edge or keep drifting out.
+      b.edgeResolved = true;
+      if (Math.random() < .5) popBubble(b, b.x < width / 2 ? 0 : width, b.y);
+    }
     if (b.merge) {
       b.merge.elapsed += dt;
       if (b.merge.elapsed >= b.merge.duration) b.merge = undefined;

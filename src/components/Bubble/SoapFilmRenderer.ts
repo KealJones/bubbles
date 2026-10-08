@@ -29,6 +29,7 @@ uniform float time;
 uniform vec4 optics;
 uniform float rimWidth;
 uniform float transparency;
+uniform float lightBending;
 uniform float layerOpacity;
 uniform int count;
 uniform vec4 shapes[${MAX_SHAPES}];
@@ -163,8 +164,9 @@ void main() {
   if (refractBackground) {
     // Sample the actual scene behind this depth plane, including farther bubbles.
     // Keep the lens displacement continuous through merged necks and opening tears.
-    vec2 uv = vec2(bent.x / size.x, 1. - bent.y / size.y);
-    vec2 offset = vec2(normal.x, -normal.y) * bend * optics.z / size;
+    vec2 refractedPoint = p - normal * bend * lightBending;
+    vec2 uv = vec2(refractedPoint.x / size.x, 1. - refractedPoint.y / size.y);
+    vec2 offset = vec2(normal.x, -normal.y) * bend * lightBending * optics.z / size;
     vec3 transmitted = vec3(texture(backdrop, clamp(uv - offset, vec2(0.), vec2(1.))).r,
                             texture(backdrop, clamp(uv, vec2(0.), vec2(1.))).g,
                             texture(backdrop, clamp(uv + offset, vec2(0.), vec2(1.))).b);
@@ -224,7 +226,7 @@ export class SoapFilmRenderer {
     const position = gl.getAttribLocation(this.program, 'position');
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-    for (const name of ['backdrop','refractBackground','paintBackground','fluid','size','pixelRatio','time','count','shapes','motion','tears','optics','rimWidth','transparency','layerOpacity']) {
+    for (const name of ['backdrop','refractBackground','paintBackground','fluid','size','pixelRatio','time','count','shapes','motion','tears','optics','rimWidth','transparency','lightBending','layerOpacity']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.texture = gl.createTexture()!;
@@ -245,7 +247,7 @@ export class SoapFilmRenderer {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   }
 
-  draw(source: HTMLCanvasElement, shapes: FilmShape[], time: number, width: number, height: number, transparency = 0.8, background = 'black') {
+  draw(source: HTMLCanvasElement, shapes: FilmShape[], time: number, width: number, height: number, transparency = 0.8, background = 'black', lightBending = 1) {
     if (this.lost || !source.width || !source.height) return;
     const gl = this.gl;
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(1800000 / (width * height)));
@@ -268,6 +270,7 @@ export class SoapFilmRenderer {
     gl.uniform1f(u.pixelRatio, dpr); gl.uniform1f(u.time, time);
     gl.uniform4f(u.optics, MATERIAL.bezel, MATERIAL.depth, MATERIAL.dispersion, MATERIAL.maxBezel);
     gl.uniform1f(u.rimWidth, MATERIAL.rimWidth);
+    gl.uniform1f(u.lightBending, Math.max(0, Math.min(3, lightBending)));
     gl.uniform1f(u.transparency, Math.max(0, Math.min(1, transparency)));
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

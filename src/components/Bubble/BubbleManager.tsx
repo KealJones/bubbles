@@ -32,14 +32,15 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
   const [renderError, setRenderError] = useState(false);
   const [flowSpeed, setFlowSpeed] = useState(0.25);
   const [transparency, setTransparency] = useState(0.8);
+  const [lightBending, setLightBending] = useState(1);
   const [backdrop, setBackdrop] = useState('black');
-  const material = useRef({ flowSpeed, transparency, backdrop });
+  const material = useRef({ flowSpeed, transparency, backdrop, lightBending });
   const capacity = Math.max(0, Math.min(MAX_BUBBLES, maxBubbles));
 
   useEffect(() => {
-    material.current = { flowSpeed, transparency, backdrop };
+    material.current = { flowSpeed, transparency, backdrop, lightBending };
     (fluidFrame.current?.contentWindow as FluidWindow | null)?.bubbleFluidSetSpeed?.(flowSpeed);
-  }, [flowSpeed, transparency, backdrop]);
+  }, [flowSpeed, transparency, backdrop, lightBending]);
 
   const register = useCallback((id: number, element: HTMLButtonElement | null) => {
     if (element) buttons.current.set(id, element);
@@ -143,7 +144,7 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
       }
       if (sprayCanvas.current) spray.draw(sprayCanvas.current, bubbles.current, dt, width, height);
       const source = fluidCanvas.current;
-      if (source) renderer.draw(source, getFilmShapes(bubbles.current), filmTime, width, height, material.current.transparency, material.current.backdrop);
+      if (source) renderer.draw(source, getFilmShapes(bubbles.current), filmTime, width, height, material.current.transparency, material.current.backdrop, material.current.lightBending);
     };
     frameId = requestAnimationFrame(animate);
     return () => { cancelAnimationFrame(frameId); renderer.destroy(); };
@@ -173,6 +174,8 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
           <input id="bubble-flow" type="range" min="0.05" max="1" step="0.05" value={flowSpeed} onChange={(e) => setFlowSpeed(Number(e.target.value))} />
           <label htmlFor="bubble-transparency">Transparency <output>{Math.round(transparency * 100)}%</output></label>
           <input id="bubble-transparency" type="range" min="0" max="1" step="0.05" value={transparency} onChange={(e) => setTransparency(Number(e.target.value))} />
+          <label htmlFor="bubble-bending">Light bending <output>{Math.round(lightBending * 100)}%</output></label>
+          <input id="bubble-bending" type="range" min="0" max="3" step="0.05" value={lightBending} onChange={(e) => setLightBending(Number(e.target.value))} />
           <label htmlFor="bubble-backdrop">Background</label>
           <select id="bubble-backdrop" value={backdrop} onChange={(e) => setBackdrop(e.target.value)}>
             <option value="black">Black</option><option value="grid">Grid</option>

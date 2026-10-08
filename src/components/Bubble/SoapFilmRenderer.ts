@@ -20,6 +20,9 @@ void main() { gl_Position = vec4(position, 0., 1.); }
 const FRAGMENT = `#version 300 es
 precision highp float;
 uniform sampler2D fluid;
+uniform sampler2D backdrop;
+uniform bool refractBackground;
+uniform bool paintBackground;
 uniform vec2 size;
 uniform float pixelRatio;
 uniform float time;
@@ -89,8 +92,13 @@ vec3 readFluid(vec2 p) {
   return texture(fluid, vec2(uv.x, 1. - uv.y)).rgb;
 }
 void main() {
-  if (count == 0) { outColor = vec4(0.); return; }
   vec2 p = vec2(gl_FragCoord.x, size.y * pixelRatio - gl_FragCoord.y) / pixelRatio;
+  if (paintBackground) {
+    float tile = mod(floor(p.x / 48.) + floor(p.y / 48.), 2.);
+    outColor = vec4(mix(vec3(41.,59.,72.), vec3(131.,148.,156.), tile) / 255., 1.);
+    return;
+  }
+  if (count == 0) { outColor = vec4(0.); return; }
   // The tear cuts visibility only; it must not create a new glass rim or reflection.
   float coverageDistance = field(p, false);
   float d = field(p, true);
@@ -152,7 +160,18 @@ void main() {
   // This is premultiplied alpha: no black paint or color-key transparency.
   float reflectance = max(reflected.r, max(reflected.g, reflected.b));
   float alpha = mix(1., max(.055, reflectance), transparency);
-  outColor = vec4(reflected * cover, alpha * cover) * layerOpacity;
+  if (refractBackground) {
+    // Sample the actual scene behind this depth plane, including farther bubbles.
+    // Keep the lens displacement continuous through merged necks and opening tears.
+    vec2 uv = vec2(bent.x / size.x, 1. - bent.y / size.y);
+    vec2 offset = vec2(normal.x, -normal.y) * bend * optics.z / size;
+    vec3 transmitted = vec3(texture(backdrop, clamp(uv - offset, vec2(0.), vec2(1.))).r,
+                            texture(backdrop, clamp(uv, vec2(0.), vec2(1.))).g,
+                            texture(backdrop, clamp(uv + offset, vec2(0.), vec2(1.))).b);
+    outColor = vec4((reflected * layerOpacity + transmitted * (1. - alpha * layerOpacity)) * cover, cover);
+  } else {
+    outColor = vec4(reflected * cover, alpha * cover) * layerOpacity;
+  }
 }
 `;
 
@@ -160,6 +179,7 @@ export class SoapFilmRenderer {
   private gl: WebGL2RenderingContext;
   private program!: WebGLProgram;
   private buffer!: WebGLBuffer;
+  private backdropTexture!: WebGLTexture;
   private texture!: WebGLTexture;
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private shapes = new Float32Array(MAX_SHAPES * 4);
@@ -204,7 +224,7 @@ export class SoapFilmRenderer {
     const position = gl.getAttribLocation(this.program, 'position');
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-    for (const name of ['fluid','size','pixelRatio','time','count','shapes','motion','tears','optics','rimWidth','transparency','layerOpacity']) {
+    for (const name of ['backdrop','refractBackground','paintBackground','fluid','size','pixelRatio','time','count','shapes','motion','tears','optics','rimWidth','transparency','layerOpacity']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.texture = gl.createTexture()!;
@@ -213,10 +233,19 @@ export class SoapFilmRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE1);
+    this.backdropTexture = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, this.backdropTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
+    gl.activeTexture(gl.TEXTURE0);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   }
 
-  draw(source: HTMLCanvasElement, shapes: FilmShape[], time: number, width: number, height: number, transparency = 0.8) {
+  draw(source: HTMLCanvasElement, shapes: FilmShape[], time: number, width: number, height: number, transparency = 0.8, background = 'black') {
     if (this.lost || !source.width || !source.height) return;
     const gl = this.gl;
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(1800000 / (width * height)));
@@ -226,12 +255,15 @@ export class SoapFilmRenderer {
     }
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-    if (!shapes.length) return;
     gl.useProgram(this.program);
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
     const u = this.uniforms;
     gl.uniform1i(u.fluid, 0);
+    gl.uniform1i(u.backdrop, 1);
+    gl.uniform1i(u.refractBackground, background === 'grid' ? 1 : 0);
+    gl.uniform1i(u.paintBackground, 0);
     gl.uniform2f(u.size, width, height);
     gl.uniform1f(u.pixelRatio, dpr); gl.uniform1f(u.time, time);
     gl.uniform4f(u.optics, MATERIAL.bezel, MATERIAL.depth, MATERIAL.dispersion, MATERIAL.maxBezel);
@@ -239,6 +271,11 @@ export class SoapFilmRenderer {
     gl.uniform1f(u.transparency, Math.max(0, Math.min(1, transparency)));
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    if (background === 'grid') {
+      gl.uniform1i(u.paintBackground, 1);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.uniform1i(u.paintBackground, 0);
+    }
     // Separate distance fields prevent bubbles on different planes from forming necks.
     // Draw far to near so clear windows also reveal the bubbles behind them.
     for (let layer = 0; layer < 3; layer++) {
@@ -254,6 +291,11 @@ export class SoapFilmRenderer {
       gl.uniform1i(u.count, count);
       gl.uniform1f(u.layerOpacity, [0.72, 0.88, 1][layer]);
       gl.uniform4fv(u.tears, this.tears); gl.uniform4fv(u.shapes, this.shapes); gl.uniform4fv(u.motion, this.motion);
+      if (background === 'grid') {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.backdropTexture);
+        gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, w, h, 0);
+      }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
   }
@@ -262,6 +304,7 @@ export class SoapFilmRenderer {
     this.canvas.removeEventListener('webglcontextlost', this.handleLost);
     this.canvas.removeEventListener('webglcontextrestored', this.handleRestored);
     this.gl.deleteTexture(this.texture);
+    this.gl.deleteTexture(this.backdropTexture);
     this.gl.deleteBuffer(this.buffer);
     this.gl.deleteProgram(this.program);
   }

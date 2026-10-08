@@ -33,13 +33,13 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
   const [flowSpeed, setFlowSpeed] = useState(0.25);
   const [transparency, setTransparency] = useState(0.8);
   const [backdrop, setBackdrop] = useState('black');
-  const material = useRef({ flowSpeed, transparency });
+  const material = useRef({ flowSpeed, transparency, backdrop });
   const capacity = Math.max(0, Math.min(MAX_BUBBLES, maxBubbles));
 
   useEffect(() => {
-    material.current = { flowSpeed, transparency };
+    material.current = { flowSpeed, transparency, backdrop };
     (fluidFrame.current?.contentWindow as FluidWindow | null)?.bubbleFluidSetSpeed?.(flowSpeed);
-  }, [flowSpeed, transparency]);
+  }, [flowSpeed, transparency, backdrop]);
 
   const register = useCallback((id: number, element: HTMLButtonElement | null) => {
     if (element) buttons.current.set(id, element);
@@ -143,7 +143,7 @@ export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: numbe
       }
       if (sprayCanvas.current) spray.draw(sprayCanvas.current, bubbles.current, dt, width, height);
       const source = fluidCanvas.current;
-      if (source) renderer.draw(source, getFilmShapes(bubbles.current), filmTime, width, height, material.current.transparency);
+      if (source) renderer.draw(source, getFilmShapes(bubbles.current), filmTime, width, height, material.current.transparency, material.current.backdrop);
     };
     frameId = requestAnimationFrame(animate);
     return () => { cancelAnimationFrame(frameId); renderer.destroy(); };

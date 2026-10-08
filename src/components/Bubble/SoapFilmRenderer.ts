@@ -25,9 +25,12 @@ uniform float pixelRatio;
 uniform float time;
 uniform vec4 optics;
 uniform float rimWidth;
+uniform float transparency;
+uniform float layerOpacity;
 uniform int count;
-uniform vec4 shapes[24];
-uniform vec4 motion[24];
+uniform vec4 shapes[${MAX_SHAPES}];
+uniform vec4 tears[${MAX_SHAPES}];
+uniform vec4 motion[${MAX_SHAPES}];
 out vec4 outColor;
 const float PI = 3.14159265359;
 
@@ -36,7 +39,8 @@ float bubbleDistance(vec2 p, int i) {
   float angle = atan(q.y, q.x);
   float wave = sin(angle * 3. + time * 1.4 + motion[i].x) * .65
              + sin(angle * 5. - time * .9 + motion[i].x * 1.7) * .35;
-  return (length(q) - 1. - wave * motion[i].y) * min(shapes[i].z, shapes[i].w);
+  float surface = (length(q) - 1. - wave * motion[i].y) * min(shapes[i].z, shapes[i].w);
+  return tears[i].w > .5 ? max(surface, tears[i].z - length(p - tears[i].xy)) : surface;
 }
 float smoothUnion(float a, float b, float k) {
   k = max(k, .001);
@@ -45,9 +49,14 @@ float smoothUnion(float a, float b, float k) {
 }
 float field(vec2 p) {
   float d = 1e5;
-  for (int i = 0; i < 24; i++) {
+  float previousBlend = 36.;
+  for (int i = 0; i < ${MAX_SHAPES}; i++) {
     if (i >= count) break;
-    d = smoothUnion(d, bubbleDistance(p, i), motion[i].z);
+    float nextDistance = bubbleDistance(p, i);
+    float nextBlend = motion[i].z;
+    float blended = smoothUnion(d, nextDistance, min(previousBlend, nextBlend));
+    if (nextDistance < d) previousBlend = nextBlend;
+    d = blended;
   }
   return d;
 }
@@ -81,16 +90,17 @@ void main() {
   float d = field(p);
   if (d > 1.5) { outColor = vec4(0.); return; }
   float nearest = 1e5, second = 1e5;
+  float nearestBlend = 0., secondBlend = 0.;
   float radius = 80.;
   vec2 center = vec2(0.);
-  for (int i = 0; i < 24; i++) {
+  for (int i = 0; i < ${MAX_SHAPES}; i++) {
     if (i >= count) break;
     float v = bubbleDistance(p, i);
     if (v < nearest) {
-      second = nearest; nearest = v;
+      second = nearest; secondBlend = nearestBlend; nearest = v; nearestBlend = motion[i].z;
       radius = min(shapes[i].z, shapes[i].w);
       center = shapes[i].xy;
-    } else { second = min(second, v); }
+    } else if (v < second) { second = v; secondBlend = motion[i].z; }
   }
   vec2 grad = vec2(field(p + vec2(.65,0.)) - field(p - vec2(.65,0.)),
                    field(p + vec2(0.,.65)) - field(p - vec2(0.,.65)));
@@ -110,6 +120,7 @@ void main() {
   float contour = .72 + .28 * smoothstep(-.8, .8, sin(thickness * PI * 12.));
   float fresnel = pow(clamp(1. - depth / max(radius, 1.), 0., 1.), 1.7);
   float neck = exp(-abs(nearest - second) / 16.) * exp(-abs(second) / 27.);
+  neck *= smoothstep(0., 16., min(nearestBlend, secondBlend));
   // Thin reflections leave broad black/clear windows through the bubble.
   float filmPatch = smoothstep(.025, .24, length(liquid)) * (.55 + .45 * sin(film * 10. + .8));
   float reflection = .065 + fresnel * .66 + filmPatch * .22 + neck * .45;
@@ -130,7 +141,12 @@ void main() {
   arc *= smoothstep(.25,.72,-local.y) * (1. - smoothstep(-.35,.6,local.x));
   color += vec3(.62,.85,.96) * arc * .12;
   float cover = 1. - smoothstep(-.7 / pixelRatio, .7 / pixelRatio, d);
-  outColor = vec4(clamp(color, 0., 1.) * cover, cover);
+  vec3 reflected = clamp(color, 0., 1.);
+  // Preserve the approved reflections on black while transmitting the real backdrop.
+  // This is premultiplied alpha: no black paint or color-key transparency.
+  float reflectance = max(reflected.r, max(reflected.g, reflected.b));
+  float alpha = mix(1., max(.055, reflectance), transparency);
+  outColor = vec4(reflected * cover, alpha * cover) * layerOpacity;
 }
 `;
 
@@ -141,6 +157,7 @@ export class SoapFilmRenderer {
   private texture!: WebGLTexture;
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private shapes = new Float32Array(MAX_SHAPES * 4);
+  private tears = new Float32Array(MAX_SHAPES * 4);
   private motion = new Float32Array(MAX_SHAPES * 4);
   private lost = false;
   private handleLost = (event: Event) => { event.preventDefault(); this.lost = true; };
@@ -181,7 +198,7 @@ export class SoapFilmRenderer {
     const position = gl.getAttribLocation(this.program, 'position');
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-    for (const name of ['fluid','size','pixelRatio','time','count','shapes','motion','optics','rimWidth']) {
+    for (const name of ['fluid','size','pixelRatio','time','count','shapes','motion','tears','optics','rimWidth','transparency','layerOpacity']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.texture = gl.createTexture()!;
@@ -193,7 +210,7 @@ export class SoapFilmRenderer {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   }
 
-  draw(source: HTMLCanvasElement, shapes: FilmShape[], time: number, width: number, height: number) {
+  draw(source: HTMLCanvasElement, shapes: FilmShape[], time: number, width: number, height: number, transparency = 0.8) {
     if (this.lost || !source.width || !source.height) return;
     const gl = this.gl;
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(1800000 / (width * height)));
@@ -204,23 +221,35 @@ export class SoapFilmRenderer {
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
     if (!shapes.length) return;
-    const count = Math.min(shapes.length, MAX_SHAPES);
-    for (let i = 0; i < count; i++) {
-      const b = shapes[i];
-      this.shapes.set([b.x, b.y, b.rx, b.ry], i * 4);
-      this.motion.set([b.phase, b.wobble, b.blend, 0], i * 4);
-    }
     gl.useProgram(this.program);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
     const u = this.uniforms;
-    gl.uniform1i(u.fluid, 0); gl.uniform1i(u.count, count);
+    gl.uniform1i(u.fluid, 0);
     gl.uniform2f(u.size, width, height);
     gl.uniform1f(u.pixelRatio, dpr); gl.uniform1f(u.time, time);
     gl.uniform4f(u.optics, MATERIAL.bezel, MATERIAL.depth, MATERIAL.dispersion, MATERIAL.maxBezel);
     gl.uniform1f(u.rimWidth, MATERIAL.rimWidth);
-    gl.uniform4fv(u.shapes, this.shapes); gl.uniform4fv(u.motion, this.motion);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.uniform1f(u.transparency, Math.max(0, Math.min(1, transparency)));
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    // Separate distance fields prevent bubbles on different planes from forming necks.
+    // Draw far to near so clear windows also reveal the bubbles behind them.
+    for (let layer = 0; layer < 3; layer++) {
+      const group = shapes.filter((shape) => shape.depth === layer);
+      const count = Math.min(group.length, MAX_SHAPES);
+      if (!count) continue;
+      for (let i = 0; i < count; i++) {
+        const b = group[i];
+        this.shapes.set([b.x, b.y, b.rx, b.ry], i * 4);
+        this.tears.set(b.tear ? [b.tear.x, b.tear.y, b.tear.radius, 1] : [0,0,0,0], i * 4);
+        this.motion.set([b.phase, b.wobble, b.blend, 0], i * 4);
+      }
+      gl.uniform1i(u.count, count);
+      gl.uniform1f(u.layerOpacity, [0.72, 0.88, 1][layer]);
+      gl.uniform4fv(u.tears, this.tears); gl.uniform4fv(u.shapes, this.shapes); gl.uniform4fv(u.motion, this.motion);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
   }
 
   destroy() {

@@ -57,6 +57,7 @@ const canvas = document.getElementsByTagName('canvas')[0];
 resizeCanvas();
 
 let config = {
+    TIME_SCALE: 0.25,
     SIM_RESOLUTION: 96,
     DYE_RESOLUTION: 512,
     CAPTURE_RESOLUTION: 512,
@@ -1098,15 +1099,16 @@ initFramebuffers();
 multipleSplats(28);
 
 let lastUpdateTime = Date.now();
-let nextAmbientSplat = Date.now() + 450;
+let ambientElapsed = 0;
 let colorUpdateTimer = 0.0;
 update();
 
 function update () {
     const dt = calcDeltaTime();
-    if (Date.now() >= nextAmbientSplat) {
+    ambientElapsed += dt;
+    if (ambientElapsed >= 0.55) {
         splatStack.push(2);
-        nextAmbientSplat = Date.now() + 450 + Math.random() * 200;
+        ambientElapsed -= 0.55;
     }
     if (resizeCanvas())
         initFramebuffers();
@@ -1123,7 +1125,7 @@ function calcDeltaTime () {
     let dt = (now - lastUpdateTime) / 1000;
     dt = Math.min(dt, 0.016666);
     lastUpdateTime = now;
-    return dt;
+    return dt * config.TIME_SCALE;
 }
 
 function resizeCanvas () {
@@ -1589,4 +1591,8 @@ window.bubbleFluidImpulse = function (x, y) {
     const color = generateColor();
     splat(x, y, 220, 160, color);
     splat(Math.min(.98, x + .025), y, -180, -140, generateColor());
+};
+
+window.bubbleFluidSetSpeed = function (speed) {
+    config.TIME_SCALE = Math.max(0.05, Math.min(1, speed));
 };

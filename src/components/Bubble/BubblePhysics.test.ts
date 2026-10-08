@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { advanceBubbles, getFilmShapes, type BubbleModel } from './BubblePhysics';
+import { advanceBubbles, getFilmShapes, attachToWand, releaseFromWand, type BubbleModel } from './BubblePhysics';
 
 function bubble(id: number, x: number, radius: number): BubbleModel {
-  return { id, x, y: 300, radius, vx: 0, vy: 0, age: 0, lifetime: 40, phase: 0 };
+  return { id, x, y: 300, radius, vx: 0, vy: 0, age: 0, lifetime: 40, phase: 0, depth: 1, mergeDelay: 0 };
 }
 
 describe('soap bubble collisions', () => {
@@ -41,5 +41,32 @@ describe('soap bubble collisions', () => {
     scene = advanceBubbles(scene, 0, 1000, () => collisions++);
     advanceBubbles(scene, 0.3, 1000, () => collisions++);
     expect(collisions).toBe(1);
+  });
+});
+
+
+describe('depth and blowing bubbles', () => {
+  it('allows overlapping bubbles at different depths to pass through each other', () => {
+    const a = bubble(1, 200, 60), b = bubble(2, 200, 60);
+    b.depth = 2;
+    const scene = advanceBubbles([a, b], 0.1, 1000);
+    expect(scene).toHaveLength(2);
+    expect(getFilmShapes(scene).map((s) => s.depth)).toEqual([1, 2]);
+  });
+
+  it('grows an attached bubble at the wand and releases it upward without merging at the tip', () => {
+    const b = bubble(1, 200, 50);
+    attachToWand(b, 400, 500);
+    const initialRadius = b.radius;
+    const scene = advanceBubbles([b], 1, 1000);
+    expect(b.radius).toBeGreaterThan(initialRadius);
+    expect(b.x).toBe(400);
+    expect(b.y + b.radius * 0.78).toBeGreaterThan(500);
+    expect(getFilmShapes(scene)).toHaveLength(2);
+    releaseFromWand(b);
+    expect(b.anchor).toBeUndefined();
+    expect(b.vy).toBeLessThan(0);
+    expect(b.mergeDelay).toBeGreaterThan(0);
+    expect(getFilmShapes(scene)).toHaveLength(1);
   });
 });

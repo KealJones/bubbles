@@ -49,8 +49,10 @@
 }
 
 body {
-  background: #00b4ff;
-  color: #333;
+  background-color: #000;
+  background-image: none;
+  background-attachment: fixed;
+  color: #fff;
   font: 100% Lato, Arial, Sans Serif;
   height: 100vh;
   margin: 0;

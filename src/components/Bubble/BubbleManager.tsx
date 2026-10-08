@@ -1,72 +1,106 @@
-import { Bubble } from "src/components/Bubble/Bubble";
-import {
-  //useAppDispatch,
-  useAppSelector,
-} from "src/store/store";
-import React, { useCallback, useEffect, useState } from "react";
-import {
-  // increment,
-  selectBigCount,
-  selectExponentialCount,
-} from "src/mechanics/counter/counterSlice";
-import styles from "./Bubble.module.css";
-// import useMousePosition from "src/utils/hooks/useMousePosition";
-import { Typography } from "@mui/joy";
-import { NumberDisplay } from "../NumberDisplay/NumberDisplay";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { selectBigCount, selectExponentialCount } from 'src/mechanics/counter/counterSlice';
+import { useAppSelector } from 'src/store/store';
+import { NumberDisplay } from '../NumberDisplay/NumberDisplay';
+import { Bubble } from './Bubble';
+import { advanceBubbles, createBubble, getFilmShapes, MAX_BUBBLES, type BubbleModel } from './BubblePhysics';
+import { SoapFilmRenderer } from './SoapFilmRenderer';
+import styles from './Bubble.module.css';
 
-export function BubbleManager({
-  maxBubbles = Infinity,
-}: {
-  maxBubbles?: number;
-}) {
-  // const dispatch = useAppDispatch();
-  // const getMousePosition = useMousePosition();
-  // const [mousePosition, setMousePosition] = useState<number>();
+type FluidWindow = Window & { bubbleFluidImpulse?: (x: number, y: number) => void };
+
+export function BubbleManager({ maxBubbles = MAX_BUBBLES }: { maxBubbles?: number }) {
   const count = useAppSelector(selectBigCount);
-  const prevCountRef = React.useRef(0n);
-  const [bubbles, setBubbles] = useState<React.ReactElement[]>([]);
-  const onPopped = useCallback((key: string) => {
-    return () =>
-      setBubbles((bubbles) =>
-        bubbles.filter((bubble) => {
-          return bubble.key !== key;
-        })
-      );
+  const previousCount = useRef(0n);
+  const nextId = useRef(0);
+  const bubbles = useRef<BubbleModel[]>([]);
+  const buttons = useRef(new Map<number, HTMLButtonElement>());
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const fluidFrame = useRef<HTMLIFrameElement>(null);
+  const fluidCanvas = useRef<HTMLCanvasElement | null>(null);
+  const [ids, setIds] = useState<number[]>([]);
+  const [renderError, setRenderError] = useState(false);
+
+  const register = useCallback((id: number, element: HTMLButtonElement | null) => {
+    if (element) buttons.current.set(id, element);
+    else buttons.current.delete(id);
   }, []);
+  const pop = useCallback((id: number) => {
+    bubbles.current = bubbles.current.filter((b) => b.id !== id);
+    setIds(bubbles.current.map((b) => b.id));
+  }, []);
+
   useEffect(() => {
-    // If the count has increased, add new bubbles.
-    if (count > prevCountRef.current) {
-      const newBubbles = Array.from(
-        { length: Math.min(Number(count - prevCountRef.current), maxBubbles) },
-        (_, i) => {
-          const key = `${Number(prevCountRef.current) + i++}`;
-          //const left = mousePosition;
-          //setMousePosition(undefined);
-          return <Bubble key={key} onPopped={onPopped(key)} />;
-        }
-      );
-      setBubbles((bubbles) => [...bubbles, ...newBubbles]);
+    const delta = count - previousCount.current;
+    previousCount.current = count;
+    if (delta <= 0n) return;
+    const limit = Math.max(0, Math.min(MAX_BUBBLES, maxBubbles) - bubbles.current.length);
+    const amount = Number(delta > BigInt(limit) ? BigInt(limit) : delta);
+    const onScreen = nextId.current === 0;
+    for (let i = 0; i < amount; i++) {
+      bubbles.current.push(createBubble(nextId.current++, window.innerWidth, window.innerHeight, onScreen));
     }
-    // Set the new count as the previous count for next render.
-    prevCountRef.current = count;
-  }, [count, maxBubbles, onPopped]);
+    if (amount) setIds(bubbles.current.map((b) => b.id));
+  }, [count, maxBubbles]);
+
+  useEffect(() => {
+    if (!canvas.current) return;
+    let renderer: SoapFilmRenderer;
+    try {
+      renderer = new SoapFilmRenderer(canvas.current);
+    } catch (error) {
+      console.error('Unable to render soap film', error);
+      setRenderError(true);
+      return;
+    }
+    let frameId = 0;
+    let previous = 0;
+    const animate = (now: number) => {
+      frameId = requestAnimationFrame(animate);
+      const dt = previous ? Math.min((now - previous) / 1000, 0.04) : 0;
+      previous = now;
+      if (document.hidden) return;
+      const width = window.innerWidth, height = window.innerHeight;
+      const before = bubbles.current.length;
+      bubbles.current = advanceBubbles(bubbles.current, dt, width, (x, y) => {
+        const source = fluidFrame.current?.contentWindow as FluidWindow | null;
+        source?.bubbleFluidImpulse?.(x / width, 1 - y / height);
+      });
+      if (bubbles.current.length !== before) setIds(bubbles.current.map((b) => b.id));
+      for (const b of bubbles.current) {
+        const button = buttons.current.get(b.id);
+        if (!button) continue;
+        const lobes = b.merge?.lobes;
+        const rx = lobes ? Math.max(b.radius, ...lobes.map((l) => Math.abs(l.x) + l.radius)) : b.radius;
+        const ry = lobes ? Math.max(b.radius, ...lobes.map((l) => Math.abs(l.y) + l.radius)) : b.radius;
+        button.style.transform = 'translate(' + (b.x - rx) + 'px,' + (b.y - ry) + 'px)';
+        button.style.width = rx * 2 + 'px';
+        button.style.height = ry * 2 + 'px';
+      }
+      const source = fluidCanvas.current;
+      if (source) renderer.draw(source, getFilmShapes(bubbles.current), now / 1000, width, height);
+    };
+    frameId = requestAnimationFrame(animate);
+    return () => { cancelAnimationFrame(frameId); renderer.destroy(); };
+  }, []);
+
   return (
-    <div
-      className={styles.bubbles}
-      // onClick={() => {
-      //   setMousePosition(getMousePosition().x);
-      //   dispatch(increment());
-      // }}
-    >
-      <Typography
-        textColor="white"
-        level="h3"
-        sx={{ position: "absolute", top: 10, right: 10 }}
-      >
-        <NumberDisplay selector={selectExponentialCount} />
-        Bubbles
-      </Typography>
-      <>{bubbles}</>
+    <div className={styles.bubbles}>
+      <iframe
+        aria-hidden="true"
+        className={styles.fluidSource}
+        ref={fluidFrame}
+        src={`${import.meta.env.BASE_URL}fluid-simulation/index.html`}
+        tabIndex={-1}
+        title="Bubble fluid simulation"
+        onLoad={() => { fluidCanvas.current = fluidFrame.current?.contentDocument?.querySelector('canvas') ?? null; }}
+      />
+      <canvas aria-hidden="true" className={styles.film} ref={canvas} />
+      <div className={styles.hitLayer}>
+        {ids.map((id) => <Bubble id={id} key={id} register={register} onPopped={pop} />)}
+      </div>
+      {renderError && <p className={styles.error}>The bubble effect needs WebGL 2. Try opening this page in a current browser.</p>}
+      <div className={styles.score}><NumberDisplay selector={selectExponentialCount} /> Bubbles</div>
     </div>
   );
 }

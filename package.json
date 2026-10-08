@@ -17,6 +17,7 @@
     "@mui/icons-material": "^5.15.17",
     "@mui/joy": "^5.0.0-beta.36",
     "@reduxjs/toolkit": "^2.2.2",
+    "amazing-glass": "github:tomacco/amazing-glass#f238dca414ffaca375df1303eba319f978ce84b1",
     "gooey-react": "^1.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

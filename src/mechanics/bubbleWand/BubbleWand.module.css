@@ -1,5 +1,20 @@
-.bubbleWand {
-  position: absolute;
-
-  z-index: 100;
-}
+.cursor { position: fixed; left: 0; top: 0; width: 50px; height: 108px; transform-origin: 25px 24px; pointer-events: none; z-index: 9; will-change: transform; opacity: 0; }
+.cursor svg { width: 100%; height: 100%; }
+.cursor[data-loaded="true"] svg { filter: drop-shadow(0 0 3px #95e8d955); }
+.station { position: absolute; bottom: 20px; left: 22px; z-index: 7; display: flex; align-items: end; gap: 18px; }
+.station button { cursor: pointer; color: #c3d4db; font-size: 11px; background: none; border: 0; }
+.juice { width: 110px; padding: 0; }
+.liquid { display: block; position: relative; height: 48px; margin-bottom: 9px; border: 2px solid #7cabba; border-radius: 50% 50% 35% 35%; background: #223f49; box-shadow: inset 0 -12px 0 #16282f; }
+.liquid::before { content: ''; position: absolute; inset: 3px 4px 15px; border-radius: 50%; background: #90c5c0; box-shadow: inset 0 3px 5px #244f66; }
+.liquid i { position: absolute; z-index: 1; width: 9px; height: 9px; border: 1px solid #d6f4ed; border-radius: 50%; left: 25px; top: 12px; }
+.liquid i:nth-child(2) { left: 65px; top: 8px; width: 6px; height: 6px; }
+.liquid i:nth-child(3) { left: 46px; top: 19px; width: 5px; height: 5px; }
+.juice:disabled { opacity: .55; cursor: default; }
+.pickup { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.pickup svg { height: 100px; width: 46px; transform: rotate(15deg); }
+.pickup[aria-pressed="true"] svg { opacity: .25; }
+.hint { position: absolute; bottom: 24px; right: 24px; z-index: 7; color: #a4b4bf; font-size: 12px; max-width: 240px; text-align: right; pointer-events: none; }
+.hint button { display: block; margin: 10px 0 0 auto; pointer-events: auto; border: 1px solid #536a73; border-radius: 20px; padding: 8px 14px; background: #142129; color: #c9e4e6; cursor: pointer; touch-action: none; }
+.hint button:disabled { opacity: .4; cursor: default; }
+.station button:focus-visible, .hint button:focus-visible { outline: 2px solid #a5e7dc; outline-offset: 5px; }
+@media (max-width: 520px) { .station { left: 12px; gap: 8px; } .hint { right: 12px; max-width: 155px; } .juice { width: 85px; } }

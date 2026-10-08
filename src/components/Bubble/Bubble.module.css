@@ -1,78 +1,111 @@
-@property --size {
-  syntax: "<length>";
-  initial-value: 0px;
-  inherits: false;
-}
-
-@property --scale {
-  syntax: "<number>";
-  initial-value: 1;
-  inherits: false;
-}
-
-@property --pos {
-  syntax: "<position>";
-  initial-value: center;
-  inherits: false;
-}
-
 .bubbles {
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  grid-column: 1;
-  grid-row: 1;
+  position: fixed;
+  inset: 0;
   overflow: hidden;
+  background: #000;
+}
+
+.fluidSource {
   position: absolute;
+  width: 512px;
+  height: 512px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.film,
+.hitLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.film { z-index: 1; }
+.hitLayer { z-index: 2; }
+
+.score {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 700;
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 3;
+  pointer-events: none;
 }
 
 .bubble {
-  -webkit-border-radius: 50%;
-  -moz-border-radius: 50%;
+  appearance: none;
+  background: transparent;
+  border: 0;
   border-radius: 50%;
-
-  box-shadow: 0 20px 30px rgba(0, 0, 0, 0.2),
-    inset 0px 10px 30px 5px rgba(255, 255, 255, 1);
-
-  height: 200px;
+  box-shadow: none;
+  cursor: pointer;
+  display: block;
+  margin: 0;
+  padding: 0;
+  pointer-events: auto;
   position: absolute;
-  width: 200px;
-  transition: --size 0.1s linear;
+  top: 0;
+  left: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.bubble:after {
-  background: radial-gradient(
-    ellipse at center,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0) 70%
-  ); /* W3C */
+.bubble:focus-visible {
+  outline: 2px solid #81dfe9;
+  outline-offset: 6px;
+}
 
-  -webkit-border-radius: 50%;
-  -moz-border-radius: 50%;
-  border-radius: 50%;
-
-  -webkit-box-shadow: inset 0 20px 30px rgba(255, 255, 255, 0.3);
-  -moz-box-shadow: inset 0 20px 30px rgba(255, 255, 255, 0.3);
-  box-shadow: inset 0 20px 30px rgba(255, 255, 255, 0.3);
-
-  content: "";
-  height: 180px;
-  left: 10px;
+.error {
   position: absolute;
-  width: 180px;
+  top: 20%;
+  width: 100%;
+  text-align: center;
+  color: #bde6ec;
 }
 
-.pop {
-  animation: explode 0.1s forwards ease-out;
+.bubbles { cursor: auto; touch-action: none; }
+.bubbles[data-backdrop="grid"] {
+  background-color: #334552;
+  background-image: repeating-conic-gradient(#293b48 0% 25%, #83949c 0% 50%);
+  background-size: 96px 96px;
 }
+.settings {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 8;
+  width: 250px;
+  max-width: calc(100vw - 32px);
+  color: #e0e6ee;
+  font-size: 13px;
+  cursor: auto;
+  touch-action: auto;
+}
+.settings summary {
+  width: fit-content;
+  cursor: pointer;
+  padding: 9px 14px;
+  background: rgba(18,22,29,.92);
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 20px;
+}
+.settingsBody {
+  margin-top: 8px;
+  padding: 16px;
+  background: rgba(18,22,29,.97);
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 16px;
+  box-shadow: 0 12px 36px rgba(0,0,0,.2);
+}
+.settingsBody label { display: flex; justify-content: space-between; gap: 16px; }
+.settingsBody output { color: #8be2eb; font-variant-numeric: tabular-nums; }
+.settingsBody input { display: block; width: 100%; margin: 10px 0 20px; accent-color: #8be2eb; cursor: pointer; }
+.settingsBody select { width: 100%; margin-top: 8px; padding: 8px; color: #e0e6ee; background: #252c35; border: 1px solid #4c5562; border-radius: 8px; }
+.settingsBody p { margin: 14px 0 0; font-size: 12px; line-height: 1.5; color: #a2acba; }
+@media (max-width: 480px) { .score { font-size: 1rem; top: 24px; } }
 
-@keyframes explode {
-  0% {
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1.3);
-    opacity: 0;
-  }
-}
+.spray { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }

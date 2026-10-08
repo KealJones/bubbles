@@ -9,6 +9,12 @@ type Props = {
   onCancel: () => void;
   onReadyFilm: (point: { x: number; y: number } | null) => void;
 };
+// Match the 108px-tall SVG and its -12deg tilt: the star is the pointer grip.
+const GRIP_DISTANCE = (100 - 29) * 108 / 130;
+const WAND_TILT = 12 * Math.PI / 180;
+function ringAtGrip(x: number, y: number) {
+  return { x: x - Math.sin(WAND_TILT) * GRIP_DISTANCE, y: y - Math.cos(WAND_TILT) * GRIP_DISTANCE };
+}
 function Wand() {
   const id = useId();
   return (
@@ -36,9 +42,16 @@ export function BubbleWand({ blowing, onStart, onMove, onRelease, onCancel, onRe
   const dipped = useRef(false);
   const position = (x: number, y: number, visible = true) => {
     if (!cursor.current) return;
-    cursor.current.style.transform = `translate3d(${x - 25}px,${y - 24}px,0) rotate(-12deg)`;
+    const ring = ringAtGrip(x, y);
+    cursor.current.style.transform = `translate3d(${ring.x - 25}px,${ring.y - 24}px,0) rotate(-12deg)`;
     cursor.current.style.opacity = visible ? '1' : '0';
-    onReadyFilm(loaded && visible ? { x, y } : null);
+    onReadyFilm(loaded && visible && !active.current ? ring : null);
+  };
+  const startAtGrip = (x: number, y: number) => {
+    const ring = ringAtGrip(x, y);
+    point.current = { x, y, time: performance.now(), vx: 0, vy: 0 };
+    position(x, y);
+    return onStart(ring.x, ring.y);
   };
   useEffect(() => {
     if (equipped && point.current.time) position(point.current.x, point.current.y);
@@ -56,16 +69,17 @@ export function BubbleWand({ blowing, onStart, onMove, onRelease, onCancel, onRe
       point.current = { x: event.clientX, y: event.clientY, time: now, vx, vy };
       position(event.clientX, event.clientY, active.current || !target?.closest('button:not([data-juice]), input, select, summary'));
       const rect = juice.current?.getBoundingClientRect();
-      const inside = !!rect && event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+      const ring = ringAtGrip(event.clientX, event.clientY);
+      const inside = !!rect && ring.x >= rect.left && ring.x <= rect.right && ring.y >= rect.top && ring.y <= rect.bottom;
       if (inside && !dipped.current && !active.current) setLoaded(true);
       dipped.current = inside;
-      if (active.current) { event.preventDefault(); onMove(event.clientX, event.clientY, vx, vy); }
+      if (active.current) { event.preventDefault(); onMove(ring.x, ring.y, vx, vy); }
     };
     const down = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!equipped || !loaded || active.current || event.button !== 0 || !target?.closest('[data-bubble-stage]') || target.closest('button, input, select, summary, [data-wand-ui]')) return;
       event.preventDefault();
-      if (!onStart(event.clientX, event.clientY)) return;
+      if (!startAtGrip(event.clientX, event.clientY)) return;
       setLoaded(false); active.current = true; pointer.current = event.pointerId;
       point.current = { x: event.clientX, y: event.clientY, time: performance.now(), vx: 0, vy: 0 };
       position(event.clientX, event.clientY);
@@ -98,11 +112,11 @@ export function BubbleWand({ blowing, onStart, onMove, onRelease, onCancel, onRe
     </div>
     <div className={styles.hint} aria-live="polite">{!equipped ? 'Click a bubble to pop it' : blowing ? 'Keep blowing… or sweep to release' : loaded ? 'Hold anywhere to blow · release to let go' : 'Dip your wand in the bubble juice'}
       {equipped && <button disabled={!loaded && !blowing} onPointerDown={event => {
-        if (!loaded || !onStart(window.innerWidth / 2, window.innerHeight * .65)) return;
+        if (!loaded || !startAtGrip(window.innerWidth / 2, window.innerHeight * .65)) return;
         event.currentTarget.setPointerCapture(event.pointerId); active.current = true; pointer.current = event.pointerId; setLoaded(false);
       }} onKeyDown={event => {
         if (![' ', 'Enter'].includes(event.key) || event.repeat || !loaded) return;
-        event.preventDefault(); if (onStart(window.innerWidth / 2, window.innerHeight * .65)) { setLoaded(false); active.current = true; pointer.current = -1; }
+        event.preventDefault(); if (startAtGrip(window.innerWidth / 2, window.innerHeight * .65)) { setLoaded(false); active.current = true; pointer.current = -1; }
       }} onKeyUp={event => { if ([' ', 'Enter'].includes(event.key) && pointer.current === -1) { event.preventDefault(); onRelease(0, 0); active.current = false; pointer.current = null; } }}>Hold to blow</button>}
     </div>
   </>;

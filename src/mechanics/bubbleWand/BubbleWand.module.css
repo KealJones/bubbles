@@ -18,3 +18,7 @@
 .hint button:disabled { opacity: .4; cursor: default; }
 .station button:focus-visible, .hint button:focus-visible { outline: 2px solid #a5e7dc; outline-offset: 5px; }
 @media (max-width: 520px) { .station { left: 12px; gap: 8px; } .hint { right: 12px; max-width: 155px; } .juice { width: 85px; } }
+
+.readyFilm { transform-origin: 30px 29px; animation: filmSwirl 14s ease-in-out infinite alternate; }
+@keyframes filmSwirl { from { transform: rotate(-15deg); } to { transform: rotate(30deg); } }
+@media (prefers-reduced-motion: reduce) { .readyFilm { animation: none; } }
